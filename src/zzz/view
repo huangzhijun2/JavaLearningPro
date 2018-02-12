@@ -1,0 +1,16 @@
+这是一个订单的两个商品的基本信息、价格信息以及计价变更信息，是从DB里的结构获取到的记录。为了企业保密性，对表、字段以及值做了简化的特殊处理。目标是将这个订单的各个商品的信息聚合在一起。 即得到：
+
+{1024_E20171013174712025_18006666={item:id=18006666, item_price:price=100, item_price:id=1000, item_price_change_log:id=[3333, 1111], item_core:num=6, item:g_id=6666, item:item_core_id=9876666, item_price:item_id=9876666, item:order_no=E20171013174712025, item_core:id=9876666, item_price_change_log:item_id=[9876666, 9876666], item:s_id=1024, item:num=6, item_price_change_log:detail=[haha3333, haha1111]}, 1024_E20171013174712025_18008888={item:id=18008888, item_price:price=200, item_price:id=2000, item_price_change_log:id=[2222, 4444], item_core:num=8, item:g_id=8888, item:item_core_id=9878888, item_price:item_id=9878888, item:order_no=E20171013174712025, item_price_change_log:item_id=[9878888, 9878888], item:s_id=1024, item_core:id=9878888, item:num=8, item_price_change_log:detail=[haha2222, haha4444]}}
+
+
+
+提示
+细心的读者会发现，一个商品 item 对应一个 item_core, 一个 item_price ，可能对应多个 item_price_change_log 。这三个表都是通过 item:item_core_id 来关联的，在 item 表是 item:item_core_id 字段， 在 item_price 表是 item_price:item_id 字段， 在 item_price_change_log 表是 item_price_change_log:item_id 字段。
+
+基本思路是：
+
+STEP1: 对于含有表 item, item_core, item_price, item_price_change_log 数据的指定JSON，构建一个总的 itemIndexMap[table:id, Map[table:field, value]]，其中 key 是 table:id, value 是一个 valMap, valMap 的键是 table:field, 值是对应的最后面的值。 table: 作为名字空间的前缀，是为了避免不同表之间的ID和field相互重合覆盖。 见方法 buildItemIndexMap 的实现。
+
+STEP2: 从 itemIndexMap 构建 item:id 与 item:item_core_id 的映射 itemCoreId2originItemIdMap；在实际应用中， originItemId 为 oldItemId (item:id), itemCoreId 为 newItemId (item:item_core_id)；
+
+STEP3: 对于每一个 [table:id, Map[table:field, value]], 通过 itemCoreId2originItemIdMap 拿到对应的 originitemId , 然后使用 originitemId 为键替换itemIndexMap中对应的 item_core:id, item_price:id, item_price_change_log:id，将具有相同的 originItemId 的不同的 Map[table:field, value] 进行合并后，添加到新的newItemIndexMap 中。
